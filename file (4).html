@@ -1,0 +1,982 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>旅遊足跡記帳</title>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#6c63ff" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="旅遊記帳" />
+
+  <!-- Open Graph（讓 Line/IG/FB 分享時顯示漂亮預覽） -->
+  <meta property="og:title" content="旅遊足跡記帳 ✈️" />
+  <meta property="og:description" content="記錄旅遊花費、足跡與回憶！" />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="https://via.placeholder.com/512x512/6c63ff/ffffff?text=✈️" />
+
+  <style>
+    /* ===== 基礎 ===== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --primary: #6c63ff;
+      --primary-dark: #5a52d5;
+      --accent: #ff6584;
+      --bg: #f0f2ff;
+      --card: #ffffff;
+      --text: #2d2d2d;
+      --sub: #888;
+      --border: #e0e0e0;
+      --green: #43c6ac;
+      --orange: #f7971e;
+      --red: #ff4757;
+      --shadow: 0 4px 20px rgba(108,99,255,0.12);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #13131a;
+        --card: #1e1e2e;
+        --text: #e0e0e0;
+        --sub: #888;
+        --border: #333;
+        --shadow: 0 4px 20px rgba(0,0,0,0.4);
+      }
+    }
+
+    html, body {
+      height: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      overflow: hidden;
+    }
+
+    /* ===== 頁面容器 ===== */
+    #app {
+      display: flex;
+      flex-direction: column;
+      height: 100dvh;
+      max-width: 480px;
+      margin: 0 auto;
+      position: relative;
+    }
+
+    /* ===== 頂部 ===== */
+    .topbar {
+      background: var(--primary);
+      color: white;
+      padding: 16px 20px;
+      padding-top: calc(16px + env(safe-area-inset-top));
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+      box-shadow: 0 2px 12px rgba(108,99,255,0.3);
+    }
+    .topbar h1 { font-size: 1.2rem; font-weight: 700; }
+    .topbar-right { display: flex; gap: 10px; }
+    .topbar-btn {
+      background: rgba(255,255,255,0.2);
+      border: none;
+      color: white;
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      font-size: 1.1rem;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.2s;
+    }
+    .topbar-btn:active { background: rgba(255,255,255,0.35); }
+
+    /* ===== 頁面切換 ===== */
+    .pages { flex: 1; overflow: hidden; position: relative; }
+    .page {
+      position: absolute; inset: 0;
+      overflow-y: auto;
+      padding: 16px 16px 100px;
+      display: none;
+      -webkit-overflow-scrolling: touch;
+    }
+    .page.active { display: block; }
+
+    /* ===== 卡片 ===== */
+    .card {
+      background: var(--card);
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 12px;
+      box-shadow: var(--shadow);
+    }
+
+    /* ===== 預算卡片 ===== */
+    .budget-card {
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+      color: white;
+      border-radius: 20px;
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    .budget-card .label { font-size: 0.8rem; opacity: 0.85; margin-bottom: 4px; }
+    .budget-card .amount { font-size: 2rem; font-weight: 800; }
+    .budget-card .sub-row {
+      display: flex; justify-content: space-between;
+      font-size: 0.8rem; opacity: 0.85; margin-top: 8px;
+    }
+    .progress-bar {
+      background: rgba(255,255,255,0.25);
+      border-radius: 99px; height: 8px; margin-top: 12px; overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%; border-radius: 99px;
+      background: white;
+      transition: width 0.5s;
+    }
+
+    /* ===== 記錄列表 ===== */
+    .record-item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .record-item:last-child { border-bottom: none; }
+    .record-item:active { background: var(--bg); border-radius: 12px; padding: 12px; margin: 0 -12px; }
+    .record-icon {
+      width: 44px; height: 44px; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.4rem; flex-shrink: 0;
+    }
+    .record-info { flex: 1; min-width: 0; }
+    .record-info .name { font-weight: 600; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .record-info .meta { font-size: 0.78rem; color: var(--sub); margin-top: 2px; }
+    .record-amount { font-weight: 700; font-size: 1rem; color: var(--accent); white-space: nowrap; }
+
+    /* ===== 快速統計 ===== */
+    .stat-grid {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 10px; margin-bottom: 12px;
+    }
+    .stat-box {
+      background: var(--card);
+      border-radius: 14px; padding: 14px;
+      box-shadow: var(--shadow); text-align: center;
+    }
+    .stat-box .s-icon { font-size: 1.5rem; margin-bottom: 4px; }
+    .stat-box .s-val { font-size: 1.1rem; font-weight: 700; color: var(--primary); }
+    .stat-box .s-label { font-size: 0.72rem; color: var(--sub); margin-top: 2px; }
+
+    /* ===== 分類篩選 ===== */
+    .filter-scroll {
+      display: flex; gap: 8px; overflow-x: auto;
+      padding-bottom: 4px; margin-bottom: 12px;
+      scrollbar-width: none;
+    }
+    .filter-scroll::-webkit-scrollbar { display: none; }
+    .filter-chip {
+      flex-shrink: 0;
+      padding: 6px 14px;
+      border-radius: 99px;
+      border: 1.5px solid var(--border);
+      background: var(--card);
+      color: var(--text);
+      font-size: 0.82rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+    .filter-chip.active {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: white;
+    }
+
+    /* ===== 底部導覽 ===== */
+    .bottom-nav {
+      position: fixed;
+      bottom: 0; left: 50%; transform: translateX(-50%);
+      width: 100%; max-width: 480px;
+      background: var(--card);
+      border-top: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-around;
+      padding-bottom: env(safe-area-inset-bottom);
+      z-index: 100;
+      box-shadow: 0 -4px 20px rgba(0,0,0,0.08);
+    }
+    .nav-btn {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 10px 0;
+      background: none; border: none; cursor: pointer;
+      color: var(--sub); font-size: 0.65rem; gap: 3px;
+      transition: color 0.2s;
+    }
+    .nav-btn .nav-icon { font-size: 1.4rem; }
+    .nav-btn.active { color: var(--primary); }
+    .nav-btn.active .nav-icon { transform: scale(1.1); }
+
+    /* FAB */
+    .fab-wrap { flex: 1; display: flex; justify-content: center; align-items: center; }
+    .fab {
+      width: 58px; height: 58px;
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      border-radius: 50%; border: none; cursor: pointer;
+      color: white; font-size: 1.8rem;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 4px 20px rgba(108,99,255,0.5);
+      margin-top: -20px;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .fab:active { transform: scale(0.92); box-shadow: 0 2px 10px rgba(108,99,255,0.3); }
+
+    /* ===== 分享按鈕區 ===== */
+    .share-section {
+      background: var(--card);
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 12px;
+      box-shadow: var(--shadow);
+    }
+    .share-section h3 { font-size: 0.9rem; color: var(--sub); margin-bottom: 12px; }
+    .share-btns { display: flex; gap: 10px; flex-wrap: wrap; }
+    .share-btn {
+      flex: 1; min-width: 80px;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 6px; padding: 12px 8px;
+      border-radius: 14px; border: none; cursor: pointer;
+      font-size: 0.78rem; font-weight: 600;
+      transition: transform 0.15s, opacity 0.15s;
+    }
+    .share-btn:active { transform: scale(0.93); opacity: 0.85; }
+    .share-btn .sh-icon { font-size: 1.8rem; }
+    .share-btn.line { background: #00c300; color: white; }
+    .share-btn.gmail { background: #ea4335; color: white; }
+    .share-btn.ig { background: linear-gradient(135deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888); color: white; }
+    .share-btn.copy { background: var(--primary); color: white; }
+    .share-btn.general { background: var(--green); color: white; }
+
+    /* ===== Modal ===== */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 200; display: none;
+      align-items: flex-end; justify-content: center;
+    }
+    .modal-overlay.show { display: flex; }
+    .modal {
+      background: var(--card);
+      border-radius: 24px 24px 0 0;
+      padding: 20px 20px calc(20px + env(safe-area-inset-bottom));
+      width: 100%; max-width: 480px;
+      max-height: 90dvh; overflow-y: auto;
+      animation: slideUp 0.3s ease;
+    }
+    @keyframes slideUp {
+      from { transform: translateY(100%); }
+      to { transform: translateY(0); }
+    }
+    .modal-handle {
+      width: 40px; height: 4px; background: var(--border);
+      border-radius: 99px; margin: 0 auto 16px;
+    }
+    .modal-title {
+      font-size: 1.1rem; font-weight: 700;
+      margin-bottom: 16px; text-align: center;
+    }
+
+    /* 表單 */
+    .form-group { margin-bottom: 14px; }
+    .form-group label { font-size: 0.82rem; color: var(--sub); margin-bottom: 6px; display: block; }
+    .form-control {
+      width: 100%; padding: 12px 14px;
+      border: 1.5px solid var(--border);
+      border-radius: 12px; font-size: 0.95rem;
+      background: var(--bg); color: var(--text);
+      outline: none; transition: border-color 0.2s;
+    }
+    .form-control:focus { border-color: var(--primary); }
+    .cat-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+    }
+    .cat-btn {
+      display: flex; flex-direction: column;
+      align-items: center; gap: 4px;
+      padding: 10px 4px; border-radius: 12px;
+      border: 1.5px solid var(--border);
+      background: var(--bg); cursor: pointer;
+      font-size: 0.72rem; transition: all 0.2s;
+    }
+    .cat-btn .c-icon { font-size: 1.5rem; }
+    .cat-btn.selected { border-color: var(--primary); background: var(--primary); color: white; }
+
+    .ai-suggest {
+      background: linear-gradient(135deg, #667eea22, #764ba222);
+      border: 1px solid var(--primary);
+      border-radius: 10px; padding: 10px 12px;
+      font-size: 0.82rem; margin-bottom: 14px;
+      display: none;
+    }
+    .ai-suggest.show { display: block; }
+    .ai-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+    .ai-tag {
+      background: var(--primary); color: white;
+      padding: 3px 10px; border-radius: 99px;
+      font-size: 0.75rem; cursor: pointer;
+    }
+
+    .btn-primary {
+      width: 100%; padding: 14px;
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+      color: white; border: none; border-radius: 14px;
+      font-size: 1rem; font-weight: 700; cursor: pointer;
+      margin-top: 4px; transition: opacity 0.2s;
+    }
+    .btn-primary:active { opacity: 0.85; }
+
+    /* ===== 統計頁 ===== */
+    .section-title {
+      font-size: 0.85rem; color: var(--sub);
+      font-weight: 600; margin-bottom: 10px;
+      text-transform: uppercase; letter-spacing: 0.05em;
+    }
+    .cat-stat-row {
+      display: flex; align-items: center; gap: 10px;
+      margin-bottom: 10px;
+    }
+    .cat-stat-icon { font-size: 1.3rem; width: 28px; text-align: center; }
+    .cat-stat-info { flex: 1; }
+    .cat-stat-name { font-size: 0.85rem; font-weight: 600; }
+    .cat-stat-bar-wrap {
+      background: var(--border); border-radius: 99px;
+      height: 6px; margin-top: 4px; overflow: hidden;
+    }
+    .cat-stat-bar { height: 100%; border-radius: 99px; background: var(--primary); transition: width 0.5s; }
+    .cat-stat-amt { font-size: 0.85rem; font-weight: 700; color: var(--primary); white-space: nowrap; }
+
+    /* ===== Toast ===== */
+    #toast {
+      position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%);
+      background: #333; color: white;
+      padding: 10px 22px; border-radius: 99px;
+      font-size: 0.88rem; z-index: 999;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.3s;
+      white-space: nowrap;
+    }
+    #toast.show { opacity: 1; }
+
+    /* ===== 空狀態 ===== */
+    .empty {
+      text-align: center; padding: 50px 20px; color: var(--sub);
+    }
+    .empty .e-icon { font-size: 4rem; margin-bottom: 12px; }
+    .empty p { font-size: 0.9rem; }
+
+    /* ===== 分享預覽卡片 ===== */
+    #sharePreview {
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      border-radius: 16px; padding: 20px;
+      color: white; margin-bottom: 16px;
+    }
+    #sharePreview .sp-title { font-size: 1rem; font-weight: 700; margin-bottom: 8px; }
+    #sharePreview .sp-body { font-size: 0.85rem; opacity: 0.9; line-height: 1.7; }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- 頂部 -->
+  <div class="topbar">
+    <h1>✈️ 旅遊足跡記帳</h1>
+    <div class="topbar-right">
+      <button class="topbar-btn" onclick="openBudgetModal()" title="設定預算">💰</button>
+      <button class="topbar-btn" onclick="openShareModal()" title="分享">📤</button>
+    </div>
+  </div>
+
+  <!-- 頁面 -->
+  <div class="pages">
+
+    <!-- 首頁 -->
+    <div class="page active" id="page-home">
+      <!-- 預算卡片 -->
+      <div class="budget-card" id="budgetCard">
+        <div class="label">已花費 / 預算</div>
+        <div class="amount" id="spentAmt">TWD 0</div>
+        <div class="sub-row">
+          <span id="budgetLeft">剩餘 TWD 15,000</span>
+          <span id="budgetPct">0%</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" id="progressFill" style="width:0%"></div>
+        </div>
+      </div>
+
+      <!-- 快速統計 -->
+      <div class="stat-grid">
+        <div class="stat-box">
+          <div class="s-icon">📅</div>
+          <div class="s-val" id="statDays">0</div>
+          <div class="s-label">旅遊天數</div>
+        </div>
+        <div class="stat-box">
+          <div class="s-icon">📊</div>
+          <div class="s-val" id="statAvg">0</div>
+          <div class="s-label">每日平均(TWD)</div>
+        </div>
+        <div class="stat-box">
+          <div class="s-icon">🧾</div>
+          <div class="s-val" id="statCount">0</div>
+          <div class="s-label">記錄筆數</div>
+        </div>
+        <div class="stat-box">
+          <div class="s-icon">🔥</div>
+          <div class="s-val" id="statMax">0</div>
+          <div class="s-label">單日最高(TWD)</div>
+        </div>
+      </div>
+
+      <!-- 分類篩選 -->
+      <div class="filter-scroll" id="filterScroll"></div>
+
+      <!-- 記錄列表 -->
+      <div class="card" id="recordList">
+        <div class="empty">
+          <div class="e-icon">🗺️</div>
+          <p>還沒有記錄<br>點下方 ＋ 開始記帳！</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 統計頁 -->
+    <div class="page" id="page-stats">
+      <div class="section-title">分類花費</div>
+      <div class="card" id="catStats"></div>
+
+      <div class="section-title" style="margin-top:16px">每日花費</div>
+      <div class="card" id="dayStats"></div>
+    </div>
+
+    <!-- 分享頁 -->
+    <div class="page" id="page-share">
+      <div id="sharePreview">
+        <div class="sp-title">✈️ 我的旅遊記帳報告</div>
+        <div class="sp-body" id="sharePreviewBody">載入中...</div>
+      </div>
+
+      <div class="share-section">
+        <h3>📤 立即分享給朋友</h3>
+        <div class="share-btns">
+          <button class="share-btn line" onclick="shareToLine()">
+            <span class="sh-icon">💬</span>LINE
+          </button>
+          <button class="share-btn gmail" onclick="shareToGmail()">
+            <span class="sh-icon">📧</span>Gmail
+          </button>
+          <button class="share-btn ig" onclick="shareToIG()">
+            <span class="sh-icon">📸</span>IG 限動
+          </button>
+        </div>
+        <div class="share-btns" style="margin-top:10px">
+          <button class="share-btn copy" onclick="copyShareText()">
+            <span class="sh-icon">📋</span>複製文字
+          </button>
+          <button class="share-btn general" onclick="nativeShare()">
+            <span class="sh-icon">🔗</span>更多分享
+          </button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="section-title">🔗 分享 App 給朋友</div>
+        <p style="font-size:0.85rem;color:var(--sub);margin-bottom:12px">讓朋友也下載這個 App！</p>
+        <div class="share-btns">
+          <button class="share-btn line" onclick="shareAppToLine()">
+            <span class="sh-icon">💬</span>LINE 分享App
+          </button>
+          <button class="share-btn copy" onclick="copyAppLink()">
+            <span class="sh-icon">🔗</span>複製連結
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- 底部導覽 -->
+  <div class="bottom-nav">
+    <button class="nav-btn active" id="nav-home" onclick="switchPage('home')">
+      <span class="nav-icon">🏠</span>首頁
+    </button>
+    <button class="nav-btn" id="nav-stats" onclick="switchPage('stats')">
+      <span class="nav-icon">📊</span>統計
+    </button>
+    <div class="fab-wrap">
+      <button class="fab" onclick="openAddModal()">＋</button>
+    </div>
+    <button class="nav-btn" id="nav-share" onclick="switchPage('share')">
+      <span class="nav-icon">📤</span>分享
+    </button>
+    <button class="nav-btn" id="nav-set" onclick="openBudgetModal()">
+      <span class="nav-icon">⚙️</span>設定
+    </button>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<!-- 新增記錄 Modal -->
+<div class="modal-overlay" id="addModal" onclick="closeModal('addModal')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-handle"></div>
+    <div class="modal-title">✍️ 新增記錄</div>
+
+    <div class="form-group">
+      <label>分類</label>
+      <div class="cat-grid" id="catGrid"></div>
+    </div>
+
+    <div class="ai-suggest" id="aiSuggest">
+      <div>🤖 AI 建議名稱：</div>
+      <div class="ai-tags" id="aiTags"></div>
+    </div>
+
+    <div class="form-group">
+      <label>名稱</label>
+      <input class="form-control" id="fName" placeholder="例：拉麵、計程車..." />
+    </div>
+
+    <div class="form-group">
+      <label>金額</label>
+      <div style="display:flex;gap:8px">
+        <select class="form-control" id="fCurrency" style="width:110px;flex-shrink:0">
+          <option>TWD</option><option>JPY</option><option>KRW</option>
+          <option>USD</option><option>HKD</option><option>EUR</option>
+          <option>GBP</option><option>THB</option><option>SGD</option>
+        </select>
+        <input class="form-control" id="fAmt" type="number" placeholder="0" />
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>日期</label>
+      <input class="form-control" id="fDate" type="date" />
+    </div>
+
+    <div class="form-group">
+      <label>備註（選填）</label>
+      <input class="form-control" id="fNote" placeholder="任何備註..." />
+    </div>
+
+    <button class="btn-primary" onclick="saveRecord()">✅ 儲存記錄</button>
+  </div>
+</div>
+
+<!-- 預算設定 Modal -->
+<div class="modal-overlay" id="budgetModal" onclick="closeModal('budgetModal')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-handle"></div>
+    <div class="modal-title">💰 設定旅遊預算</div>
+    <div class="form-group">
+      <label>旅遊名稱</label>
+      <input class="form-control" id="bTripName" placeholder="例：日本東京五日遊" />
+    </div>
+    <div class="form-group">
+      <label>預算（TWD）</label>
+      <input class="form-control" id="bAmt" type="number" placeholder="15000" />
+    </div>
+    <button class="btn-primary" onclick="saveBudget()">✅ 儲存設定</button>
+  </div>
+</div>
+
+<!-- 記錄詳情 Modal -->
+<div class="modal-overlay" id="detailModal" onclick="closeModal('detailModal')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="detailTitle">記錄詳情</div>
+    <div id="detailBody"></div>
+    <button class="btn-primary" style="background:var(--red);margin-top:8px" onclick="deleteRecord()">🗑️ 刪除這筆記錄</button>
+    <button class="btn-primary" style="background:var(--sub);margin-top:8px" onclick="closeModal('detailModal')">關閉</button>
+  </div>
+</div>
+
+<script>
+// ========== 資料 ==========
+const CATS = [
+  { id:'food',    icon:'🍜', name:'餐飲',  color:'#ff6b6b', bg:'#fff0f0' },
+  { id:'hotel',   icon:'🏨', name:'住宿',  color:'#4e54c8', bg:'#f0f0ff' },
+  { id:'trans',   icon:'🚆', name:'交通',  color:'#43c6ac', bg:'#f0fff9' },
+  { id:'shop',    icon:'🛍️', name:'購物',  color:'#f7971e', bg:'#fff8f0' },
+  { id:'play',    icon:'🎡', name:'娛樂',  color:'#e040fb', bg:'#fdf0ff' },
+  { id:'ticket',  icon:'🎟️', name:'票券',  color:'#00b4d8', bg:'#f0fbff' },
+  { id:'cafe',    icon:'☕', name:'咖啡',  color:'#795548', bg:'#fff8f5' },
+  { id:'other',   icon:'📦', name:'其他',  color:'#888',    bg:'#f5f5f5' },
+];
+
+const AI_SUGGESTS = {
+  food:   ['拉麵','壽司','燒肉','火鍋','早餐','晚餐','小吃'],
+  hotel:  ['民宿','商旅','膠囊旅館','飯店住宿'],
+  trans:  ['計程車','JR Pass','捷運','公車','新幹線','機場巴士'],
+  shop:   ['藥妝店','伴手禮','衣服','電器','超市'],
+  play:   ['主題樂園','展覽','演唱會','遊覽車'],
+  ticket: ['入場券','博物館','觀光景點','水族館'],
+  cafe:   ['咖啡廳','星巴克','下午茶','甜點'],
+  other:  ['雜費','緊急支出','其他花費'],
+};
+
+const TWD_RATES = { TWD:1, JPY:0.22, KRW:0.024, USD:32.5, HKD:4.15, EUR:35.2, GBP:41.0, THB:0.90, SGD:24.0 };
+
+let records = JSON.parse(localStorage.getItem('tl_v2') || '[]');
+let budget  = JSON.parse(localStorage.getItem('tl_budget') || '{"name":"我的旅遊","amount":15000}');
+let currentFilter = 'all';
+let currentDetailId = null;
+
+// ========== 工具 ==========
+function toTWD(amt, cur) { return amt * (TWD_RATES[cur] || 1); }
+function fmtNum(n) { return Math.round(n).toLocaleString(); }
+function today() { return new Date().toISOString().slice(0,10); }
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+function save() {
+  localStorage.setItem('tl_v2', JSON.stringify(records));
+  localStorage.setItem('tl_budget', JSON.stringify(budget));
+}
+
+// ========== 頁面切換 ==========
+function switchPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  document.getElementById('nav-'+name)?.classList.add('active');
+  if (name === 'stats') renderStats();
+  if (name === 'share') renderSharePage();
+}
+
+// ========== 渲染首頁 ==========
+function renderHome() {
+  // 預算
+  const total = records.reduce((s,r) => s + toTWD(r.amt, r.currency), 0);
+  const pct = Math.min(100, (total / budget.amount * 100));
+  document.getElementById('spentAmt').textContent = `TWD ${fmtNum(total)}`;
+  document.getElementById('budgetLeft').textContent = `剩餘 TWD ${fmtNum(budget.amount - total)}`;
+  document.getElementById('budgetPct').textContent = `${Math.round(pct)}%`;
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('budgetCard').querySelector('.label').textContent = `${budget.name || '旅遊'} · 已花費 / 預算 TWD ${fmtNum(budget.amount)}`;
+
+  // 統計
+  const days = [...new Set(records.map(r=>r.date))].length;
+  const avg  = days ? total/days : 0;
+  const dayMap = {};
+  records.forEach(r => { dayMap[r.date] = (dayMap[r.date]||0) + toTWD(r.amt,r.currency); });
+  const maxDay = Math.max(0, ...Object.values(dayMap));
+  document.getElementById('statDays').textContent = days;
+  document.getElementById('statAvg').textContent = fmtNum(avg);
+  document.getElementById('statCount').textContent = records.length;
+  document.getElementById('statMax').textContent = fmtNum(maxDay);
+
+  // 篩選
+  const fc = document.getElementById('filterScroll');
+  fc.innerHTML = `<button class="filter-chip ${currentFilter==='all'?'active':''}" onclick="setFilter('all')">全部</button>`;
+  CATS.forEach(c => {
+    const has = records.some(r=>r.cat===c.id);
+    if (has) fc.innerHTML += `<button class="filter-chip ${currentFilter===c.id?'active':''}" onclick="setFilter('${c.id}')">${c.icon} ${c.name}</button>`;
+  });
+
+  // 列表
+  const list = document.getElementById('recordList');
+  let filtered = currentFilter==='all' ? records : records.filter(r=>r.cat===currentFilter);
+  filtered = [...filtered].reverse();
+  if (!filtered.length) {
+    list.innerHTML = `<div class="empty"><div class="e-icon">🗺️</div><p>還沒有記錄<br>點下方 ＋ 開始記帳！</p></div>`;
+    return;
+  }
+  list.innerHTML = filtered.map(r => {
+    const cat = CATS.find(c=>c.id===r.cat) || CATS[7];
+    return `<div class="record-item" onclick="openDetail('${r.id}')">
+      <div class="record-icon" style="background:${cat.bg};">${cat.icon}</div>
+      <div class="record-info">
+        <div class="name">${r.name}</div>
+        <div class="meta">${cat.name} · ${r.date}${r.note?' · '+r.note:''}</div>
+      </div>
+      <div class="record-amount">${r.currency} ${fmtNum(r.amt)}</div>
+    </div>`;
+  }).join('');
+}
+
+function setFilter(f) { currentFilter = f; renderHome(); }
+
+// ========== 渲染統計 ==========
+function renderStats() {
+  const total = records.reduce((s,r) => s + toTWD(r.amt,r.currency), 0);
+  // 分類統計
+  const cs = document.getElementById('catStats');
+  if (!records.length) { cs.innerHTML = '<div class="empty"><div class="e-icon">📊</div><p>還沒有資料</p></div>'; }
+  else {
+    const catTotals = {};
+    records.forEach(r => { catTotals[r.cat] = (catTotals[r.cat]||0) + toTWD(r.amt,r.currency); });
+    const sorted = Object.entries(catTotals).sort((a,b)=>b[1]-a[1]);
+    cs.innerHTML = sorted.map(([id, amt]) => {
+      const cat = CATS.find(c=>c.id===id) || CATS[7];
+      const pct = total ? (amt/total*100) : 0;
+      return `<div class="cat-stat-row">
+        <div class="cat-stat-icon">${cat.icon}</div>
+        <div class="cat-stat-info">
+          <div class="cat-stat-name">${cat.name}</div>
+          <div class="cat-stat-bar-wrap">
+            <div class="cat-stat-bar" style="width:${pct}%;background:${cat.color}"></div>
+          </div>
+        </div>
+        <div class="cat-stat-amt">TWD ${fmtNum(amt)}<br><span style="font-size:0.7rem;color:var(--sub)">${Math.round(pct)}%</span></div>
+      </div>`;
+    }).join('');
+  }
+
+  // 每日統計
+  const ds = document.getElementById('dayStats');
+  if (!records.length) { ds.innerHTML = '<div class="empty"><div class="e-icon">📅</div><p>還沒有資料</p></div>'; return; }
+  const dayMap = {};
+  records.forEach(r => { dayMap[r.date] = (dayMap[r.date]||0) + toTWD(r.amt,r.currency); });
+  const maxAmt = Math.max(...Object.values(dayMap));
+  const sortedDays = Object.entries(dayMap).sort((a,b)=>a[0].localeCompare(b[0]));
+  ds.innerHTML = sortedDays.map(([date, amt]) => `
+    <div class="cat-stat-row">
+      <div class="cat-stat-icon" style="font-size:0.85rem;width:48px;color:var(--sub)">${date.slice(5)}</div>
+      <div class="cat-stat-info">
+        <div class="cat-stat-bar-wrap">
+          <div class="cat-stat-bar" style="width:${maxAmt?(amt/maxAmt*100):0}%"></div>
+        </div>
+      </div>
+      <div class="cat-stat-amt">TWD ${fmtNum(amt)}</div>
+    </div>
+  `).join('');
+}
+
+// ========== 新增記錄 ==========
+function openAddModal() {
+  document.getElementById('fDate').value = today();
+  document.getElementById('fName').value = '';
+  document.getElementById('fAmt').value = '';
+  document.getElementById('fNote').value = '';
+  document.getElementById('aiSuggest').classList.remove('show');
+
+  // 分類按鈕
+  const grid = document.getElementById('catGrid');
+  grid.innerHTML = CATS.map(c =>
+    `<button class="cat-btn" data-id="${c.id}" onclick="selectCat('${c.id}')">
+      <span class="c-icon">${c.icon}</span>${c.name}
+    </button>`
+  ).join('');
+  selectCat('food');
+  document.getElementById('addModal').classList.add('show');
+}
+
+function selectCat(id) {
+  document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('selected'));
+  document.querySelector(`.cat-btn[data-id="${id}"]`)?.classList.add('selected');
+  // AI 建議
+  clearTimeout(window._aiTimer);
+  document.getElementById('aiSuggest').classList.remove('show');
+  window._aiTimer = setTimeout(() => {
+    const tags = AI_SUGGESTS[id] || [];
+    document.getElementById('aiTags').innerHTML = tags.map(t =>
+      `<span class="ai-tag" onclick="document.getElementById('fName').value='${t}'">${t}</span>`
+    ).join('');
+    document.getElementById('aiSuggest').classList.add('show');
+  }, 800);
+}
+
+function saveRecord() {
+  const cat  = document.querySelector('.cat-btn.selected')?.dataset.id || 'other';
+  const name = document.getElementById('fName').value.trim();
+  const amt  = parseFloat(document.getElementById('fAmt').value);
+  const cur  = document.getElementById('fCurrency').value;
+  const date = document.getElementById('fDate').value;
+  const note = document.getElementById('fNote').value.trim();
+
+  if (!name) { showToast('⚠️ 請輸入名稱'); return; }
+  if (!amt || amt <= 0) { showToast('⚠️ 請輸入正確金額'); return; }
+
+  records.push({ id: Date.now().toString(), cat, name, amt, currency: cur, date, note });
+  save();
+  closeModal('addModal');
+  renderHome();
+  showToast('✅ 已新增記錄！');
+}
+
+// ========== 記錄詳情 ==========
+function openDetail(id) {
+  const r = records.find(x=>x.id===id);
+  if (!r) return;
+  currentDetailId = id;
+  const cat = CATS.find(c=>c.id===r.cat) || CATS[7];
+  document.getElementById('detailTitle').textContent = `${cat.icon} ${r.name}`;
+  document.getElementById('detailBody').innerHTML = `
+    <div style="font-size:1.8rem;text-align:center;margin:16px 0">${cat.icon}</div>
+    <div class="card" style="margin:0 0 8px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+        <span style="color:var(--sub)">金額</span>
+        <strong style="color:var(--accent)">${r.currency} ${fmtNum(r.amt)}</strong>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+        <span style="color:var(--sub)">分類</span>
+        <strong>${cat.name}</strong>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+        <span style="color:var(--sub)">日期</span>
+        <strong>${r.date}</strong>
+      </div>
+      ${r.note?`<div style="display:flex;justify-content:space-between">
+        <span style="color:var(--sub)">備註</span>
+        <strong>${r.note}</strong>
+      </div>`:''}
+    </div>
+    <div style="text-align:center;color:var(--sub);font-size:0.8rem;margin-bottom:8px">
+      ≈ TWD ${fmtNum(toTWD(r.amt, r.currency))}
+    </div>
+  `;
+  document.getElementById('detailModal').classList.add('show');
+}
+
+function deleteRecord() {
+  records = records.filter(r => r.id !== currentDetailId);
+  save();
+  closeModal('detailModal');
+  renderHome();
+  showToast('🗑️ 已刪除');
+}
+
+// ========== 預算設定 ==========
+function openBudgetModal() {
+  document.getElementById('bTripName').value = budget.name || '';
+  document.getElementById('bAmt').value = budget.amount || 15000;
+  document.getElementById('budgetModal').classList.add('show');
+}
+function saveBudget() {
+  budget.name   = document.getElementById('bTripName').value.trim() || '我的旅遊';
+  budget.amount = parseFloat(document.getElementById('bAmt').value) || 15000;
+  save();
+  closeModal('budgetModal');
+  renderHome();
+  showToast('✅ 預算已儲存！');
+}
+
+// ========== Modal ==========
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+function openShareModal() { switchPage('share'); }
+
+// ========== 分享功能 ==========
+function buildShareText() {
+  const total = records.reduce((s,r) => s + toTWD(r.amt,r.currency), 0);
+  const days  = [...new Set(records.map(r=>r.date))].length;
+  const catTotals = {};
+  records.forEach(r => { catTotals[r.cat] = (catTotals[r.cat]||0) + toTWD(r.amt,r.currency); });
+  const topCat = Object.entries(catTotals).sort((a,b)=>b[1]-a[1])[0];
+  const topCatInfo = topCat ? CATS.find(c=>c.id===topCat[0]) : null;
+
+  return `✈️ ${budget.name || '旅遊'} 花費報告
+
+💰 總花費：TWD ${fmtNum(total)}
+📅 旅遊天數：${days} 天
+📊 每日平均：TWD ${fmtNum(days ? total/days : 0)}
+🧾 記錄筆數：${records.length} 筆
+${topCatInfo ? `🔥 最多花費：${topCatInfo.icon} ${topCatInfo.name} TWD ${fmtNum(topCat[1])}` : ''}
+💡 預算：TWD ${fmtNum(budget.amount)}（已用 ${Math.round(total/budget.amount*100)}%）
+
+📱 用「旅遊足跡記帳」記錄的`;
+}
+
+function renderSharePage() {
+  const text = buildShareText();
+  document.getElementById('sharePreviewBody').textContent = text;
+}
+
+function shareToLine() {
+  const text = encodeURIComponent(buildShareText());
+  window.open(`https://line.me/R/msg/text/?${text}`, '_blank');
+}
+
+function shareToGmail() {
+  const subject = encodeURIComponent(`✈️ ${budget.name || '旅遊'} 花費報告`);
+  const body    = encodeURIComponent(buildShareText());
+  window.open(`mailto:?subject=${subject}&body=${body}`, '_blank');
+}
+
+function shareToIG() {
+  // IG 不支援直接分享文字，改為複製後引導
+  copyShareText();
+  setTimeout(() => {
+    showToast('📸 已複製！請開啟 IG → 限動 → 貼上文字');
+  }, 300);
+}
+
+function copyShareText() {
+  const text = buildShareText();
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(() => showToast('✅ 已複製到剪貼簿！'));
+  } else {
+    const ta = document.createElement('textarea');
+    ta.value = text; document.body.appendChild(ta);
+    ta.select(); document.execCommand('copy');
+    document.body.removeChild(ta);
+    showToast('✅ 已複製！');
+  }
+}
+
+function nativeShare() {
+  const text = buildShareText();
+  if (navigator.share) {
+    navigator.share({
+      title: `✈️ ${budget.name || '旅遊'} 花費報告`,
+      text:  text,
+      url:   window.location.href,
+    }).catch(()=>{});
+  } else {
+    copyShareText();
+  }
+}
+
+function shareAppToLine() {
+  const url  = encodeURIComponent(window.location.href);
+  const text = encodeURIComponent('推薦你用這個旅遊記帳 App！✈️ 免費、離線可用！');
+  window.open(`https://line.me/R/msg/text/?${text}%0A${url}`, '_blank');
+}
+
+function copyAppLink() {
+  const url = window.location.href;
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(url).then(() => showToast('✅ App 連結已複製！'));
+  } else {
+    const ta = document.createElement('textarea');
+    ta.value = url; document.body.appendChild(ta);
+    ta.select(); document.execCommand('copy');
+    document.body.removeChild(ta);
+    showToast('✅ 已複製！');
+  }
+}
+
+// ========== PWA ==========
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(()=>{});
+}
+
+// Android 安裝提示
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredPrompt = e;
+  showToast('📲 可以安裝到主畫面喔！');
+});
+
+// ========== 初始化 ==========
+renderHome();
+</script>
+</body>
+</html>
